@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>舒尔特方格 · 专注力训练</title>
+  <meta name="description" content="经典舒尔特方格训练，随机生成方格，锻炼专注力与视觉搜索能力。支持离线使用。" />
+  <meta name="theme-color" content="#6366f1" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" href="./icons/icon-192.png" />
+  <style>
+    :root {
+      --primary: #6366f1;
+      --primary-d: #4f46e5;
+      --accent: #22d3ee;
+      --ok: #10b981;
+      --err: #ef4444;
+      --ink: #e8eaf6;
+      --muted: #a5aecb;
+      --card: rgba(255, 255, 255, 0.08);
+      --card-b: rgba(255, 255, 255, 0.16);
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", Roboto, sans-serif;
+      color: var(--ink);
+      background: #0f172a url('./schulte-bg.jpg') center/cover no-repeat fixed;
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: env(safe-area-inset-top) 16px calc(24px + env(safe-area-inset-bottom));
+      overflow-x: hidden;
+    }
+    .wrap { width: 100%; max-width: 560px; }
+    header { text-align: center; padding: 22px 0 10px; }
+    h1 { margin: 0; font-size: 1.6rem; letter-spacing: 1px; font-weight: 800;
+         background: linear-gradient(90deg, #fff, #a5b4fc); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .sub { margin-top: 6px; color: var(--muted); font-size: .85rem; }
+
+    .panel {
+      margin-top: 16px; background: var(--card); border: 1px solid var(--card-b);
+      border-radius: 20px; padding: 16px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+      box-shadow: 0 12px 36px rgba(0,0,0,.28);
+    }
+    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; }
+    .seg { display: inline-flex; background: rgba(0,0,0,.22); border-radius: 12px; padding: 4px; gap: 2px; }
+    .seg button {
+      border: 0; background: transparent; color: var(--muted); font-size: .9rem; font-weight: 700;
+      padding: 8px 12px; border-radius: 9px; cursor: pointer; min-width: 44px; transition: .18s;
+    }
+    .seg button.active { background: var(--primary); color: #fff; box-shadow: 0 4px 12px rgba(99,102,241,.5); }
+    .label { font-size: .78rem; color: var(--muted); margin-right: 2px; }
+
+    .stats { display: flex; justify-content: space-around; text-align: center; margin-top: 14px; gap: 8px; }
+    .stat { flex: 1; }
+    .stat .v { font-size: 1.5rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .stat .k { font-size: .72rem; color: var(--muted); margin-top: 2px; }
+
+    .grid {
+      margin: 18px auto 4px; display: grid; gap: 8px; width: 100%; aspect-ratio: 1/1;
+      touch-action: manipulation;
+    }
+    .cell {
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18);
+      border-radius: 14px; font-size: 1.5rem; font-weight: 800; cursor: pointer;
+      user-select: none; transition: transform .1s, background .2s, color .2s, opacity .2s;
+      font-variant-numeric: tabular-nums;
+    }
+    .cell:active { transform: scale(.94); }
+    .cell.done { background: rgba(16,185,129,.22); border-color: var(--ok); color: #6ee7b7; opacity: .55; pointer-events: none; }
+    .cell.wrong { animation: shake .3s; background: rgba(239,68,68,.35); }
+    .cell p { margin: 0; }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+
+    .btn-row { display: flex; gap: 12px; margin-top: 16px; }
+    .btn {
+      flex: 1; border: 0; border-radius: 14px; padding: 14px 10px; font-size: 1rem; font-weight: 800;
+      cursor: pointer; transition: transform .12s, filter .2s; color: #fff;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn.primary { background: linear-gradient(135deg, var(--primary), #8b5cf6); box-shadow: 0 8px 22px rgba(99,102,241,.45); }
+    .btn.ghost { background: rgba(255,255,255,.12); border: 1px solid var(--card-b); }
+
+    .msg { text-align: center; min-height: 1.4em; margin-top: 12px; font-weight: 700; font-size: .95rem; }
+    .msg.ok { color: #6ee7b7; }
+    .msg.err { color: #fca5a5; }
+    .hint { text-align: center; color: var(--muted); font-size: .78rem; margin-top: 18px; line-height: 1.7; }
+
+    .install { display: none; margin-top: 12px; text-align: center; }
+    .install.show { display: block; }
+    .install button { background: rgba(34,211,238,.18); border: 1px solid rgba(34,211,238,.5); color: #a5f3fc;
+      border-radius: 12px; padding: 10px 16px; font-weight: 700; cursor: pointer; font-size: .9rem; }
+
+    @media (max-width: 380px) {
+      .cell { border-radius: 10px; font-size: 1.2rem; }
+      h1 { font-size: 1.35rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>舒尔特方格</h1>
+      <div class="sub">按 1 → N 顺序点击 · 训练专注力与视觉搜索</div>
+    </header>
+
+    <div class="panel">
+      <div class="row">
+        <span class="label">难度</span>
+        <div class="seg" id="sizeSeg">
+          <button data-size="3">3×3</button>
+          <button data-size="4" class="active">4×4</button>
+          <button data-size="5">5×5</button>
+          <button data-size="6">6×6</button>
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <span class="label">模式</span>
+        <div class="seg" id="modeSeg">
+          <button data-mode="num" class="active">数字</button>
+          <button data-mode="letter">字母</button>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat"><div class="v" id="timer">0.0</div><div class="k">用时 (秒)</div></div>
+        <div class="stat"><div class="v" id="progress">0/16</div><div class="k">进度</div></div>
+        <div class="stat"><div class="v" id="best">--</div><div class="k">最佳 (秒)</div></div>
+      </div>
+
+      <div class="grid" id="grid" aria-label="舒尔特方格"></div>
+
+      <div class="btn-row">
+        <button class="btn primary" id="startBtn">开始训练</button>
+        <button class="btn ghost" id="resetBtn">重置</button>
+      </div>
+      <div class="msg" id="msg"></div>
+
+      <div class="install" id="install">
+        <button id="installBtn">📲 安装到桌面</button>
+      </div>
+    </div>
+
+    <div class="hint">每次开始都会随机打乱方格 · 成绩自动保存在本机<br />可离线使用，添加到主屏幕后体验更佳</div>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+      const gridEl = document.getElementById('grid');
+      const timerEl = document.getElementById('timer');
+      const progressEl = document.getElementById('progress');
+      const bestEl = document.getElementById('best');
+      const msgEl = document.getElementById('msg');
+      const startBtn = document.getElementById('startBtn');
+      const resetBtn = document.getElementById('resetBtn');
+      const sizeSeg = document.getElementById('sizeSeg');
+      const modeSeg = document.getElementById('modeSeg');
+
+      let size = 4;
+      let mode = 'num';
+      let next = 1;
+      let startTime = 0;
+      let timerId = null;
+      let running = false;
+      let finished = false;
+
+      const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+      function labelFor(i) {
+        return mode === 'num' ? String(i + 1) : LETTERS[i];
+      }
+      function bestKey() { return `schulte-best-${mode}-${size}`; }
+      function loadBest() {
+        const v = localStorage.getItem(bestKey());
+        bestEl.textContent = v ? parseFloat(v).toFixed(1) : '--';
+      }
+      function saveBest(sec) {
+        const prev = parseFloat(localStorage.getItem(bestKey()));
+        if (!prev || sec < prev) {
+          localStorage.setItem(bestKey(), sec.toFixed(1));
+          bestEl.textContent = sec.toFixed(1);
+          return true;
+        }
+        return false;
+      }
+      function shuffle(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+      }
+      function setMsg(text, cls) {
+        msgEl.textContent = text;
+        msgEl.className = 'msg' + (cls ? ' ' + cls : '');
+      }
+      function stopTimer() {
+        if (timerId) { clearInterval(timerId); timerId = null; }
+      }
+      function startTimer() {
+        stopTimer();
+        startTime = performance.now();
+        timerId = setInterval(() => {
+          timerEl.textContent = ((performance.now() - startTime) / 1000).toFixed(1);
+        }, 100);
+      }
+
+      function buildGrid() {
+        const total = size * size;
+        const cells = shuffle(Array.from({ length: total }, (_, i) => i));
+        gridEl.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+        gridEl.innerHTML = '';
+        const baseFont = size <= 3 ? 2.2 : size === 4 ? 1.6 : size === 5 ? 1.25 : 1.0;
+        cells.forEach(idx => {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.style.fontSize = baseFont + 'rem';
+          cell.dataset.index = idx;
+          const p = document.createElement('p');
+          p.textContent = labelFor(idx);
+          cell.appendChild(p);
+          cell.addEventListener('click', () => onCell(cell, idx));
+          gridEl.appendChild(cell);
+        });
+      }
+
+      function reset(full) {
+        stopTimer();
+        running = false;
+        finished = false;
+        next = 1;
+        timerEl.textContent = '0.0';
+        progressEl.textContent = `0/${size * size}`;
+        startBtn.textContent = '开始训练';
+        setMsg('');
+        if (full !== false) buildGrid();
+        else {
+          gridEl.querySelectorAll('.cell').forEach(c => c.classList.remove('done', 'wrong'));
+        }
+        loadBest();
+      }
+
+      function start() {
+        buildGrid();
+        next = 1;
+        finished = false;
+        timerEl.textContent = '0.0';
+        progressEl.textContent = `0/${size * size}`;
+        setMsg('');
+        running = true;
+        startBtn.textContent = '进行中…';
+        startTimer();
+      }
+
+      function onCell(cell, idx) {
+        if (!running || finished) {
+          setMsg('请先点击「开始训练」', 'err');
+          return;
+        }
+        if (idx === next - 1) {
+          cell.classList.add('done');
+          next++;
+          progressEl.textContent = `${next - 1}/${size * size}`;
+          if (next > size * size) {
+            const sec = (performance.now() - startTime) / 1000;
+            stopTimer();
+            running = false;
+            finished = true;
+            timerEl.textContent = sec.toFixed(1);
+            startBtn.textContent = '再来一次';
+            const isBest = saveBest(sec);
+            setMsg(`🎉 完成！用时 ${sec.toFixed(1)} 秒${isBest ? ' · 新纪录！' : ''}`, 'ok');
+          }
+        } else {
+          cell.classList.remove('wrong');
+          void cell.offsetWidth;
+          cell.classList.add('wrong');
+          setTimeout(() => cell.classList.remove('wrong'), 320);
+        }
+      }
+
+      sizeSeg.addEventListener('click', e => {
+        const b = e.target.closest('button'); if (!b) return;
+        size = parseInt(b.dataset.size, 10);
+        sizeSeg.querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b));
+        reset();
+      });
+      modeSeg.addEventListener('click', e => {
+        const b = e.target.closest('button'); if (!b) return;
+        mode = b.dataset.mode;
+        modeSeg.querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b));
+        reset();
+      });
+      startBtn.addEventListener('click', () => { start(); });
+      resetBtn.addEventListener('click', () => { reset(); });
+
+      // PWA 安装提示
+      let deferredPrompt = null;
+      const installBox = document.getElementById('install');
+      window.addEventListener('beforeinstallprompt', e => {
+        e.preventDefault();
+        deferredPrompt = e;
+        installBox.classList.add('show');
+      });
+      document.getElementById('installBtn').addEventListener('click', async () => {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        await deferredPrompt.userChoice;
+        deferredPrompt = null;
+        installBox.classList.remove('show');
+      });
+      window.addEventListener('appinstalled', () => installBox.classList.remove('show'));
+
+      // 注册 Service Worker
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js').catch(() => {});
+        });
+      }
+
+      reset();
+    })();
+  </script>
+</body>
+</html>
